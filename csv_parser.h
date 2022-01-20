@@ -1,16 +1,18 @@
+#ifndef CSV_PARSER_H
+#define CSV_PARSER_H
+
 #include <fstream>
 #include <typeinfo>
 #include <regex>
 #include "tuple.h"
 #include "constants.h"
 
-using namespace std;
 
 template<class ... Args>
 
 class CSVParser {
 private:
-    ifstream& input;
+    std::ifstream& input;
     size_t offset;
     int file_length = UNREAL_FILE_LEN;
     char field_delimiter = '\"', column_delimiter = ',', line_delimiter = '\n';
@@ -20,7 +22,7 @@ private:
     };
 
     template<typename _CharT, typename _Traits, typename _Alloc>
-    void GetLine(basic_istream<_CharT, _Traits>& is, basic_string<_CharT, _Traits, _Alloc>& str) {
+    void GetLine(std::basic_istream<_CharT, _Traits>& is, std::basic_string<_CharT, _Traits, _Alloc>& str) {
         char symb;
         str.clear();
         while (is.get(symb)) {
@@ -31,62 +33,62 @@ private:
         }
     }
 
-    bool EmptyTailToDelimiter(string str, int position) {
+    bool EmptyTailToDelimiter(std::string str, int position) {
         for (int i = position; i < str.size(); ++i) {
             if (str[i] == column_delimiter) {
                 break;
             }
-            else {
-                if (str[i] != ' ') {
-                    return false;
-                }
+            else if (str[i] != ' ') {
+                return false;
             }
         }
         return true;
     }
 
-    string l_trim(const string& str) {
-        return regex_replace(str, regex("^\\s+"), string(""));
+    std::string l_trim(const std::string& str) {
+        return regex_replace(str, std::regex("^\\s+"), std::string(""));
     }
 
-    string r_trim(const string& str) {
-        return regex_replace(str, regex("\\s+$"), string(""));
+    std::string r_trim(const std::string& str) {
+        return regex_replace(str, std::regex("\\s+$"), std::string(""));
     }
 
-    string trim(const string& str) {
-        return ltrim(rtrim(str));
+    std::string trim(const std::string& str) {
+        return l_trim(r_trim(str));
     }
 
 
     int GetLength() {
-        string line;
+        
         if (file_length == UNREAL_FILE_LEN) {
             input.clear();
-            input.seekg(ZERO_LEN, ios::beg);
-            for (file_length = ZERO_LEN; Getline(input, line); file_length++);
+            input.seekg(ZERO_LEN, std::ios::beg);
+
+            std::string line;
+            for (file_length = ZERO_LEN; getline(input, line); file_length++);
 
             input.clear();
-            input.seekg(ZERO_LEN, ios::beg);
+            input.seekg(ZERO_LEN, std::ios::beg);
         }
         return file_length;
     }
 
     class CSVIterator {
     private:
-        string str_buf;
-        ifstream& input;
+        std::string str_buf;
+        std::ifstream& input;
         size_t index;
         CSVParser<Args...>& parent;
         bool last = false;
-
+        friend class CSVParser;
 
     public:
-        CSVIterator(ifstream& ifs, size_t index, CSVParser<Args...>& parent) : index(index), parent(parent), input(ifs) {
+        CSVIterator(std::ifstream& ifs, size_t index, CSVParser<Args...>& parent) : index(index), parent(parent), input(ifs) {
             for (int i = ZERO_LEN; i < index - PREV_POS; i++, parent.GetLine(input, str_buf));
 
             parent.GetLine(input, str_buf);
             if (!input) {
-                throw logic_error("Bad file!");
+                throw std::logic_error("Bad file!");
             }
         }
 
@@ -94,7 +96,7 @@ private:
             if (index < parent.file_length) {
                 index++;
                 input.clear();
-                input.seekg(ZERO_LEN, ios::beg);
+                input.seekg(ZERO_LEN, std::ios::beg);
                 for (int i = ZERO_LEN; i < index - PREV_POS; ++i, parent.GetLine(input, str_buf));
 
                 parent.GetLine(input, str_buf);
@@ -115,25 +117,25 @@ private:
             return !(*this == other);
         }
 
-        tuple<Args...> operator*() {
+        std::tuple<Args...> operator*() {
             return parent.ParseLine(str_buf, index);
         }
     };
 
 public:
-    explicit CSVParser(ifstream& f, size_t offset) : input(f), offset(offset) {
+    explicit CSVParser(std::ifstream& f, size_t offset) : input(f), offset(offset) {
         if (!f.is_open()) {
             throw std::invalid_argument("Can't open file");
         }
         if (offset >= GetLength()) {
-            throw logic_error("Bad file offset! It is more than file len");
+            throw std::logic_error("Bad file offset! It is more than file len");
         }
         if (offset < BELOW_ZERO_OFFSET) {
-            throw logic_error("Bad file offset! It is below zero");
+            throw std::logic_error("Bad file offset! It is below zero");
         }
     }
 
-    void setDelimiters(char new_field_delimiter, char new_column_delimiter, char new_line_delimiter) {
+    void SetDelimiters(char new_field_delimiter, char new_column_delimiter, char new_line_delimiter) {
         line_delimiter = new_line_delimiter;
         field_delimiter = new_field_delimiter;
         column_delimiter = new_column_delimiter;
@@ -141,7 +143,7 @@ public:
 
     void reset() {
         input.clear();
-        input.seekg(ZERO_LEN, ios::beg);
+        input.seekg(ZERO_LEN, std::ios::beg);
     }
 
     CSVIterator begin() {
@@ -159,19 +161,20 @@ public:
         return csv_it;
     }
 
-    void CheckSymb(bool delim, int line_position, ParsingState& state) {
+    void CheckSymb(bool delim, int line_position, ParsingState& state, std::string& line, int line_num, int counter) {
         if (!delim && line.size() > line_position + NEXT_POS && line[line_position + NEXT_POS] != field_delimiter) {
             if (!EmptyTailToDelimiter(line, line_position + NEXT_POS)) {
-                throw invalid_argument("Bad " + to_string(counter) + "th field at line " + to_string(line_num) + ": symbols after delimiter in field!");
+                throw std::invalid_argument("Bad " + std::to_string(counter) + "th field at line " + std::to_string(line_num) + ": symbols after delimiter in field!");
             }
             state = ParsingState::simple_read;
         }
     }
 
-    vector<string> read_string(string& line, int line_num) {
-        vector<string> fields{ "" };
+    std::vector<std::string> read_string(std::string& line, int line_num) {
+        std::vector<std::string> fields{ "" };
         ParsingState state = ParsingState::simple_read;
-        int counter = line_position = BEGINING_SIZE;
+        int counter = BEGINING_SIZE;
+        int line_position = BEGINING_SIZE;
         bool filled = false, access_write_delimiter = false;
         line = trim(line);
         for (char symb : line) {
@@ -183,8 +186,8 @@ public:
                     filled = false;
                 }
                 else if (symb == field_delimiter) {
-                    if (line_position > ZERO_LEN && filled) {
-                        throw invalid_argument("Bad " + to_string(counter) + "th field at line " + to_string(line_num) + ": field delimiter not first!");
+                    if (line_position > ZERO_LEN&& filled) {
+                        throw std::invalid_argument("Bad " + std::to_string(counter) + "th field at line " + std::to_string(line_num) + ": field delimiter not first!");
                     }
                     fields[counter] = trim(fields[counter]);
                     state = ParsingState::read_delimiter;
@@ -194,12 +197,12 @@ public:
                     if (symb != ' ') {
                         filled = true;
                     }
-                    fields[counter].push_back(c);
+                    fields[counter].push_back(symb);
                 }
             }
             else {
                 if (symb == field_delimiter) {
-                    CheckSymb(access_write_delimiter, line_position, state);
+                    CheckSymb(access_write_delimiter, line_position, state, line, counter, line_num);
                     if (!access_write_delimiter && line_position == line.size() - PREV_POS) {
                         state = ParsingState::simple_read;
                     }
@@ -218,32 +221,36 @@ public:
             line_position++;
         }
         if (state != ParsingState::simple_read) {
-            throw invalid_argument("Bad " + to_string(counter) + "th field at line " + to_string(line_num) + ": don't closed field!");
+            throw std::invalid_argument("Bad " + std::to_string(counter) + "th field at line " + std::to_string(line_num) + ": don't closed field!");
         }
         return fields;
     }
 
-    tuple<Args...> ParseLine(string& line, int number){
+
+    std::tuple<Args...> ParseLine(std::string& line, int number) {
         size_t size = sizeof...(Args);
 
         if (line.empty()) {
-            throw invalid_argument("Line " + to_string(number) + " is empty!");
+            throw std::invalid_argument("Line " + std::to_string(number) + " is empty!");
         }
-        tuple<Args...> table_str;
-        vector<string> fields = read_string(line, number);
+        std::tuple<Args...> table_str;
+        std::vector<std::string> fields = read_string(line, number);
 
         if (fields.size() != size) {
-            throw invalid_argument("Wrong number of fields in line " + to_string(number) + "!");
+            throw std::invalid_argument("Wrong number of fields in line " + std::to_string(number) + "!");
         }
-        auto iter = fields.begin();
+        auto a = fields.begin();
         try {
-            Parse(table_str, iter);
+            parse::Parse(table_str, a);
         }
-        catch (exception & ex) {
-            throw invalid_argument("Line " + to_string(number) + " contains bad types!");
+        catch (std::exception & ex) {
+            throw std::invalid_argument("Line " + std::to_string(number) + " contains bad types!");
         }
+
         return table_str;
     }
-    friend class CSVParser;
 };
+
+#endif
+
 
